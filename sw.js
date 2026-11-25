@@ -1,6 +1,6 @@
 // Kruger tick list service worker. VERSION changes automatically whenever any app file changes,
 // so phones fetch the new version next time they're online, then show "Update now".
-const VERSION = "kruger-f823f5d49d";
+const VERSION = "kruger-3751d74bd9";
 const FILES = ['index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'img/bateleur-m.jpg'];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES.map(f => new Request(f, {cache: "reload"})))));
