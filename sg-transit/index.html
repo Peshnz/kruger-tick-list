@@ -97,7 +97,9 @@ const TYPES = [
   {id:'cable', name:'Cable car',    c:'#00a3b4'}
 ];
 const T = Object.fromEntries(TYPES.map(t => [t.id, t]));
-const SERVERS = ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+const SERVERS = ['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+const TYPE_IDS = TYPES.map(t => t.id);
 const SG = [1.3521, 103.8198];
 const store = {
   get(k, d){ try { const v = localStorage.getItem('sgt_' + k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
@@ -105,7 +107,7 @@ const store = {
 };
 
 let on = new Set(store.get('on', TYPES.map(t => t.id)));
-let me = null, places = [], fetchedAt = null, loading = false;
+let me = null, places = [], fetchedAt = null, loading = false, allData = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 
@@ -158,10 +160,26 @@ function label(type, t){
   return T[type].name;
 }
 
+// All of Singapore, rebuilt weekly from OpenStreetMap by a GitHub Action (data.json beside this page)
+async function loadAll(){
+  try {
+    const r = await fetch('data.json', {cache:'no-cache'});
+    if (!r.ok) return false;
+    const d = await r.json();
+    if (!d.stops || !d.stops.length) return false;
+    allData = d.stops.map(a => ({type: TYPE_IDS[a[0]], name: a[1], lat: a[2], lng: a[3], ref: a[4] || ''}));
+    return true;
+  } catch(e) { return false; }
+}
+
 async function load(center){
+  const R = +$('radius').value;
+  if (allData) {
+    places = allData.filter(p => dist(center, [p.lat, p.lng]) <= R);
+    fetchedAt = center; $('area').style.display = 'none'; render(); return;
+  }
   if (loading) return;
   loading = true;
-  const R = +$('radius').value;
   $('status').textContent = 'Loading…';
   const a = `(around:${R},${center[0]},${center[1]})`;
   const q = `[out:json][timeout:25];(
@@ -173,28 +191,26 @@ nwr["amenity"="ferry_terminal"]${a};
 nwr["amenity"="bicycle_rental"]${a};
 nwr["aerialway"="station"]${a};
 );out center tags;`;
-  let data = null;
+  let out = null;
   for (const s of SERVERS) {
     try {
-      const r = await fetch(s, {method:'POST', body:'data=' + encodeURIComponent(q), headers:{'Content-Type':'application/x-www-form-urlencoded'}});
-      if (r.ok) { data = await r.json(); break; }
+      const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 20000);
+      const r = await fetch(s, {method:'POST', body:'data=' + encodeURIComponent(q), signal: ctl.signal,
+        headers:{'Content-Type':'application/x-www-form-urlencoded'}});
+      clearTimeout(tm);
+      if (!r.ok) continue;
+      const data = await r.json();
+      if (data.remark && !(data.elements || []).length) continue;   // busy server: answered "ok" with nothing
+      out = parse(data.elements || []);
+      if (out.length) break;
     } catch(e) {}
   }
   loading = false;
-  if (!data) { $('status').textContent = 'Map data offline – try again'; return; }
-  const seen = new Map(), out = [];
-  for (const el of data.elements) {
-    const t = el.tags || {}, type = classify(t);
-    if (!type) continue;
-    const lat = el.lat ?? el.center?.lat, lng = el.lon ?? el.center?.lon;
-    if (lat == null) continue;
-    const name = label(type, t);
-    // stations often appear once per line or as node + area: merge same-name neighbours
-    const key = type + '|' + name;
-    const prev = seen.get(key);
-    if (prev && type !== 'bus' && type !== 'taxi' && dist([prev.lat, prev.lng], [lat, lng]) < 400) continue;
-    const p = {type, name, lat, lng, ref: t.ref || t.asset_ref || '', op: t.operator || t.network || ''};
-    seen.set(key, p); out.push(p);
+  if (allData) return;
+  if (!out || !out.length) {
+    $('status').textContent = 'Stop data unavailable';
+    $('list').innerHTML = '<li class="empty">Couldn\'t reach the stop data. Check your signal, then tap ◎ to retry.</li>';
+    return;
   }
   places = out; fetchedAt = center;
   store.set('cache', {places, fetchedAt});
@@ -202,17 +218,35 @@ nwr["aerialway"="station"]${a};
   render();
 }
 
+function parse(elements){
+  const seen = new Map(), out = [];
+  for (const el of elements) {
+    const t = el.tags || {}, type = classify(t);
+    if (!type) continue;
+    const lat = el.lat ?? el.center?.lat, lng = el.lon ?? el.center?.lon;
+    if (lat == null) continue;
+    const name = label(type, t);
+    const key = type + '|' + name, prev = seen.get(key);
+    if (prev && type !== 'bus' && type !== 'taxi' && dist([prev.lat, prev.lng], [lat, lng]) < 400) continue;
+    const p = {type, name, lat, lng, ref: t.ref || t.asset_ref || ''};
+    seen.set(key, p); out.push(p);
+  }
+  return out;
+}
+
 function render(){
   layer.clearLayers();
   const ref = me || fetchedAt || SG;
-  const vis = places.filter(p => on.has(p.type)).map(p => ({...p, d: dist(ref, [p.lat, p.lng])})).sort((a,b) => a.d - b.d);
-  for (const p of vis) {
+  const near = places.filter(p => on.has(p.type)).map(p => ({...p, d: dist(ref, [p.lat, p.lng])}));
+  const pool = allData ? allData.filter(p => on.has(p.type)).map(p => ({...p, d: dist(ref, [p.lat, p.lng])})) : near;
+  const vis = pool.sort((a,b) => a.d - b.d);
+  for (const p of near) {
     const t = T[p.type], big = p.type !== 'bus' && p.type !== 'bike';
     L.circleMarker([p.lat, p.lng], {radius: big ? 9 : 6, color:'#fff', weight:2, fillColor:t.c, fillOpacity:1, bubblingMouseEvents:false})
       .bindPopup(`<b>${esc(p.name)}</b><br>${esc(t.name)}${p.ref && p.type==='bus' ? ' · ' + esc(p.ref) : ''}<br>${fmtD(p.d)} · ${walk(p.d)}<br><a href="${esc(navUrl(p))}" target="_blank" rel="noopener">Navigate ›</a>`)
       .addTo(layer);
   }
-  $('status').textContent = places.length ? `${vis.length} nearby` : (me ? 'Ready' : 'No location');
+  $('status').textContent = `${near.length} within ${fmtD(+$('radius').value)}`;
   const first = vis[0], btn = $('goBtn');
   btn.disabled = !first;
   btn.innerHTML = first
@@ -224,7 +258,7 @@ function render(){
       <span class="nm">${esc(p.name)}<span>${esc(T[p.type].name)}${p.ref && p.type==='bus' ? ' · ' + esc(p.ref) : ''}</span></span>
       <span class="d">${fmtD(p.d)}<span>${walk(p.d)}</span></span>
       <a href="${esc(navUrl(p))}" target="_blank" rel="noopener" aria-label="Navigate to ${esc(p.name)}">›</a></li>`).join('')
-    : `<li class="empty">${places.length ? 'No matches for these filters.' : 'Loading nearby transport…'}</li>`;
+    : `<li class="empty">${on.size ? 'Loading nearby transport…' : 'Pick at least one transport type.'}</li>`;
   $('list').onclick = e => {
     if (e.target.closest('a')) return;
     const li = e.target.closest('li[data-i]'); if (!li) return;
@@ -246,8 +280,9 @@ function setMe(lat, lng, acc){
 
 // Restore last results so the list shows instantly
 const cache = store.get('cache', null);
-if (cache && cache.places) { places = cache.places; fetchedAt = cache.fetchedAt; render(); }
+if (cache && cache.places && cache.places.length) { places = cache.places; fetchedAt = cache.fetchedAt; render(); }
 
+loadAll().then(ok => { if (ok) load(me || fetchedAt || SG); });
 if ('geolocation' in navigator) {
   navigator.geolocation.watchPosition(
     pos => setMe(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
@@ -264,7 +299,7 @@ map.on('moveend', () => {
 });
 $('area').addEventListener('click', () => { const c = map.getCenter(); load([c.lat, c.lng]); });
 $('radius').addEventListener('change', () => load(me || fetchedAt || SG));
-$('locate').addEventListener('click', () => { if (me) map.setView(me, 16); });
+$('locate').addEventListener('click', () => { if (me) { map.setView(me, 16); load(me); } });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 let deferred = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; $('install').hidden = false; });
