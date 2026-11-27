@@ -185,12 +185,51 @@ async function fromFile(){
   try { const r = await fetch('data.json'); if (!r.ok) return null; const d = await r.json(); return d.stops?.length ? d.stops : null; }
   catch(e) { return null; }
 }
+// LTA's official taxi stands and taxi stops (data.gov.sg), far more complete than OpenStreetMap
+async function ltaTaxi(){
+  try {
+    const r = await fetch('https://api-open.data.gov.sg/v1/public/api/datasets/d_fa1896e73ded89dd513788d501d45033/poll-download');
+    const j = await r.json();
+    if (!j.data?.url) return null;
+    const g = await (await fetch(j.data.url)).json();
+    const pts = (g.features || []).filter(f => f.geometry?.type === 'Point')
+      .map(f => [f.geometry.coordinates[1], f.geometry.coordinates[0], f.properties?.TYPE_CD === 'TSTAND']);
+    return pts.length ? pts : null;
+  } catch(e) { return null; }
+}
+// Put LTA taxi points into the OSM list: take an OSM taxi stand's name where one is mapped at the same spot,
+// otherwise name it after the nearest station or bus stop.
+function combine(osm, taxi){
+  if (!taxi) return osm;
+  const TI = IDS.indexOf('taxi'), named = osm.filter(r => r[0] !== TI && r[1] !== 'Bus stop');
+  const osmTaxi = osm.filter(r => r[0] === TI), used = new Set();
+  const out = osm.filter(r => r[0] !== TI);
+  for (const [lat, lng, stand] of taxi) {
+    let name = null;
+    for (let k = 0; k < osmTaxi.length; k++) {
+      const o = osmTaxi[k];
+      if (!used.has(k) && Math.abs(o[2] - lat) < .001 && dist([o[2], o[3]], [lat, lng]) < 60) { used.add(k); if (o[1] !== 'Taxi stand') name = o[1]; break; }
+    }
+    if (!name) {
+      let best = null, bd = 400;
+      for (const r of named) {
+        if (Math.abs(r[2] - lat) > .004 || Math.abs(r[3] - lng) > .004) continue;
+        const d = dist([r[2], r[3]], [lat, lng]); if (d < bd) { bd = d; best = r; }
+      }
+      name = (stand ? 'Taxi stand' : 'Taxi stop') + (best ? ' near ' + best[1] : '');
+    }
+    out.push([TI, name, +lat.toFixed(6), +lng.toFixed(6), '']);
+  }
+  osmTaxi.forEach((o, k) => { if (!used.has(k)) out.push(o); });   // mall and hotel stands LTA doesn't list
+  return out;
+}
 async function loadData(){
-  const cached = store.get('all', null);
+  const cached = store.get('all2', null);
   if (cached?.rows?.length) { all = expand(cached.rows); draw(); }
   if (cached?.rows?.length && Date.now() - cached.at < WEEK) return;
-  const rows = await fromFile() || await fromServers();
-  if (rows) { store.set('all', {at: Date.now(), rows}); all = expand(rows); draw(); return; }
+  const [osm, taxi] = await Promise.all([fromFile().then(r => r || fromServers()), ltaTaxi()]);
+  const rows = combine(osm || [], taxi);
+  if (rows.length) { if (osm) store.set('all2', {at: Date.now(), rows}); all = expand(rows); draw(); return; }
   if (!all.length) {
     $('status').textContent = 'Stops unavailable';
     $('list').innerHTML = '<li class="empty">Couldn\'t download the stop list. Check your signal, then tap ◎ to try again.</li>';
