@@ -17,106 +17,234 @@
 <style>
 /* VOICE: practical, quick, glanceable on the street
    IDEA: an MRT network map / station wayfinding sign
-   PICTURE: the live map itself, full screen, with coloured mode dots
-   COLOUR and TYPE: deep transit navy, white, mode colours from SG transit (MRT red, LRT grey, bus green, taxi yellow); Overpass
-   LAYOUT: map full bleed, chips on top, nearest-list sheet at the bottom */
-:root{color-scheme:light dark;--bg:light-dark(#ffffff,#12202b);--ink:light-dark(#12202b,#eef3f6);--mute:light-dark(#5b6b77,#9fb0bc);--line:light-dark(#e2e8ec,#26394a);--navy:#12202b;--acc:#d42e12}
+   PICTURE: satellite map of all Singapore with coloured mode dots
+   COLOUR and TYPE: transit navy, white, SG mode colours; Overpass
+   LAYOUT: map full bleed, chips on top, selection card + nearest list in a bottom sheet */
+:root{--bg:#12202b;--ink:#eef3f6;--mute:#9fb0bc;--line:#26394a;--navy:#12202b;--acc:#d42e12}
 *{box-sizing:border-box;min-width:0}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--ink);font:16px/1.45 Overpass,system-ui,sans-serif;overflow:hidden}
-#map{position:fixed;inset:0;z-index:1}
+#map{position:fixed;inset:0;z-index:1;background:#0b1418}
+.overlay{filter:grayscale(1) contrast(1.3) brightness(1.1)}
 header{position:fixed;top:0;left:0;right:0;z-index:5;padding:calc(env(safe-area-inset-top) + 10px) 12px 8px;background:linear-gradient(var(--navy) 70%,transparent);color:#fff}
 h1{font-size:20px;line-height:1.05;margin:0 0 8px;font-weight:800;display:flex;align-items:center;gap:8px}
-h1 i{width:12px;height:12px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 3px #fff}
-#status{font-weight:400;font-size:13px;opacity:.8;margin-left:auto}
+h1 i{flex:none;width:12px;height:12px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 3px #fff}
+#status{font-weight:400;font-size:13px;opacity:.85;margin-left:auto;white-space:nowrap}
 .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;display:flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:20px;border:2px solid #ffffff55;background:#ffffff14;color:#fff;font:600 14px Overpass,sans-serif;cursor:pointer}
 .chip b{width:12px;height:12px;border-radius:50%;background:var(--c);border:2px solid #fff}
 .chip[aria-pressed=false]{opacity:.5;border-color:#ffffff22}
 .chip[aria-pressed=false] b{background:transparent}
-.chip:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid #f2b600;outline-offset:2px}
-#sheet{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--bg);border-radius:18px 18px 0 0;box-shadow:0 -6px 24px #0004;padding:10px 14px calc(env(safe-area-inset-bottom) + 12px);max-height:46vh;display:flex;flex-direction:column;transition:max-height .25s}
-#sheet.min{max-height:150px}
+button:focus-visible,a:focus-visible{outline:3px solid #f2b600;outline-offset:2px}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--bg);border-radius:18px 18px 0 0;box-shadow:0 -6px 24px #0006;padding:10px 14px calc(env(safe-area-inset-bottom) + 12px);max-height:46vh;display:flex;flex-direction:column;transition:max-height .25s}
+#sheet.min{max-height:170px}
 #grab{align-self:center;width:44px;height:5px;border-radius:3px;background:var(--line);border:0;margin-bottom:8px;cursor:pointer;padding:0}
-.go{display:flex;gap:8px;align-items:stretch}
-#goBtn{flex:1;min-height:52px;border:0;border-radius:12px;background:var(--acc);color:#fff;font:800 17px Overpass,sans-serif;cursor:pointer;text-align:left;padding:6px 14px;line-height:1.2}
-#goBtn small{display:block;font-weight:400;font-size:13px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#goBtn:disabled{background:var(--line);color:var(--mute)}
-.ctl{min-height:52px;min-width:52px;border-radius:12px;border:2px solid var(--line);background:var(--bg);color:var(--ink);font:600 15px Overpass,sans-serif;cursor:pointer;padding:0 10px}
-#list{list-style:none;margin:10px 0 0;padding:0;overflow-y:auto}
-#list li{display:flex;align-items:center;gap:10px;padding:10px 2px;border-top:1px solid var(--line);cursor:pointer}
-#list .dot{flex:none;width:14px;height:14px;border-radius:50%;background:var(--c)}
+.row{display:flex;gap:8px;align-items:stretch}
+#sel{flex:1;display:flex;align-items:center;gap:10px;min-height:56px;padding:6px 10px 6px 12px;border-radius:12px;background:#1b2e3c;border-left:6px solid var(--c,#3a4f60)}
+#sel .nm{flex:1;line-height:1.25;font-weight:800}
+#sel .nm span{display:block;font-weight:400;font-size:13px;color:var(--mute)}
+#sel .hint{flex:1;color:var(--mute);font-size:15px}
+#navBtn{flex:none;display:flex;align-items:center;min-height:44px;padding:0 16px;border-radius:10px;background:var(--acc);color:#fff;font:800 16px Overpass,sans-serif;text-decoration:none;white-space:nowrap}
+#clear{flex:none;width:36px;height:44px;border:0;background:none;color:var(--mute);font-size:20px;cursor:pointer}
+.ctl{flex:none;min-height:56px;min-width:56px;border-radius:12px;border:2px solid var(--line);background:var(--bg);color:var(--ink);font:600 15px Overpass,sans-serif;cursor:pointer;padding:0 10px}
+h2{font-size:13px;font-weight:600;color:var(--mute);margin:12px 2px 2px}
+#list{list-style:none;margin:0;padding:0;overflow-y:auto}
+#list li{display:flex;align-items:center;gap:10px;padding:10px 2px;border-top:1px solid var(--line);cursor:pointer;min-height:52px}
+#list li.on{background:#1b2e3c}
+#list .dot{flex:none;width:14px;height:14px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px #fff}
 #list .nm{flex:1;line-height:1.25}
 #list .nm span{display:block;font-size:13px;color:var(--mute)}
 #list .d{white-space:nowrap;font-weight:600;text-align:right;font-size:14px}
 #list .d span{display:block;font-weight:400;font-size:13px;color:var(--mute)}
-#list a{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:10px;background:var(--navy);color:#fff;text-decoration:none;font-weight:800}
-.empty{color:var(--mute);font-size:14px;padding:12px 2px}
-#area{position:fixed;z-index:4;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 110px);display:none;min-height:40px;padding:0 16px;border-radius:20px;border:0;background:#fff;color:#12202b;font:600 14px Overpass,sans-serif;box-shadow:0 2px 10px #0005;cursor:pointer}
-#map{background:#0b1418}
-.overlay{filter:grayscale(1) contrast(1.3) brightness(1.1)}
+.empty{color:var(--mute);font-size:14px;padding:12px 2px;cursor:default!important}
 .me{width:18px;height:18px;border-radius:50%;background:#1a73e8;border:3px solid #fff;box-shadow:0 0 0 6px #1a73e855}
-.leaflet-popup-content{font:14px/1.35 Overpass,sans-serif}
-.leaflet-popup-content a{font-weight:800}
 .leaflet-top{top:calc(env(safe-area-inset-top) + 100px)}
 @media (prefers-reduced-motion:reduce){#sheet{transition:none}}
 </style>
 </head>
 <body>
-<div id="map" aria-label="Map"></div>
+<div id="map" aria-label="Map of Singapore transport stops"></div>
 <header>
-  <h1><i></i>SG Transit Near Me <span id="status">Locating…</span></h1>
+  <h1><i></i>SG Transit Near Me <span id="status">Loading stops…</span></h1>
   <div class="chips" id="chips" role="group" aria-label="Filter by transport type"></div>
 </header>
-<button id="area" type="button">Search this area</button>
-<section id="sheet" aria-label="Nearest stops">
+<section id="sheet" aria-label="Selected stop and nearest stops">
   <button id="grab" type="button" aria-label="Expand or collapse list"></button>
-  <div class="go">
-    <button id="goBtn" type="button" disabled>Navigate to nearest<small>Waiting for location…</small></button>
-    <select class="ctl" id="radius" aria-label="Search radius">
-      <option value="500">500 m</option><option value="1000" selected>1 km</option><option value="2000">2 km</option>
-    </select>
+  <div class="row">
+    <div id="sel"><span class="hint">Tap a stop on the map or in the list</span></div>
     <button class="ctl" id="install" type="button" hidden>Install</button>
     <button class="ctl" id="locate" type="button" aria-label="Centre on my location">◎</button>
   </div>
-  <ul id="list"></ul>
+  <h2 id="listTitle">Nearest to you</h2>
+  <ul id="list"><li class="empty">Loading stops…</li></ul>
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 {
 const TYPES = [
-  {id:'mrt',   name:'MRT',          c:'#d42e12'},
-  {id:'lrt',   name:'LRT',          c:'#748477'},
-  {id:'bus',   name:'Bus stop',     c:'#009645'},
+  {id:'mrt',   name:'MRT',             c:'#d42e12'},
+  {id:'lrt',   name:'LRT',             c:'#748477'},
+  {id:'bus',   name:'Bus stop',        c:'#009645'},
   {id:'int',   name:'Bus interchange', c:'#6f2b8f'},
-  {id:'taxi',  name:'Taxi stand',   c:'#f2b600'},
-  {id:'ferry', name:'Ferry',        c:'#0a6fb5'},
-  {id:'bike',  name:'Bike share',   c:'#e07b00'},
-  {id:'cable', name:'Cable car',    c:'#00a3b4'}
+  {id:'taxi',  name:'Taxi stand',      c:'#f2b600'},
+  {id:'ferry', name:'Ferry',           c:'#0a6fb5'},
+  {id:'bike',  name:'Bike share',      c:'#e07b00'},
+  {id:'cable', name:'Cable car',       c:'#00a3b4'}
 ];
 const T = Object.fromEntries(TYPES.map(t => [t.id, t]));
+const IDS = TYPES.map(t => t.id);
 const SERVERS = ['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
-const TYPE_IDS = TYPES.map(t => t.id);
 const SG = [1.3521, 103.8198];
+const WEEK = 7 * 864e5;
 const store = {
   get(k, d){ try { const v = localStorage.getItem('sgt_' + k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
-  set(k, v){ try { localStorage.setItem('sgt_' + k, JSON.stringify(v)); } catch(e){} }
+  set(k, v){ try { localStorage.setItem('sgt_' + k, JSON.stringify(v)); return true; } catch(e){ return false; } }
 };
-
-let on = new Set(store.get('on', TYPES.map(t => t.id)));
-let me = null, places = [], fetchedAt = null, loading = false, allData = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 
+let on = new Set(store.get('on', IDS));
+let me = null, all = [], selected = null, markers = [];
+
 const map = L.map('map', {zoomControl:false, preferCanvas:true}).setView(SG, 12);
-// Satellite base with a faint street map laid over it
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, maxNativeZoom:19, attribution:'Imagery © Esri, Maxar, Earthstar Geographics'}).addTo(map);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, opacity:0.3, className:'overlay', attribution:'© OpenStreetMap contributors'}).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Imagery © Esri, Maxar, Earthstar Geographics'}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, opacity:0.3, className:'overlay', attribution:'Stops & streets © OpenStreetMap contributors'}).addTo(map);
 const layer = L.layerGroup().addTo(map);
-let meMarker = null, ring = null;
+const ringLayer = L.layerGroup().addTo(map);
+let meMarker = null, accRing = null;
+
+function dist(a, b){
+  const r = x => x * Math.PI / 180;
+  const h = Math.sin(r(b[0]-a[0])/2)**2 + Math.cos(r(a[0]))*Math.cos(r(b[0]))*Math.sin(r(b[1]-a[1])/2)**2;
+  return 12742000 * Math.asin(Math.sqrt(h));
+}
+const fmtD = m => m < 1000 ? Math.round(m/10)*10 + ' m' : (m/1000).toFixed(1) + ' km';
+const walk = m => m > 3000 ? '' : ' · ' + Math.max(1, Math.round(m / 80)) + ' min walk';
+const navUrl = p => `https://www.google.com/maps/dir/?api=1${me ? `&origin=${me[0]},${me[1]}` : ''}&destination=${p.lat},${p.lng}&travelmode=${dist(me || SG, [p.lat, p.lng]) > 3000 ? 'transit' : 'walking'}`;
+const sub = p => T[p.type].name + (p.ref ? ' · ' + p.ref : '');
+
+// ---------- data: all of Singapore, fetched once and kept for a week ----------
+function classify(t){
+  if (t.highway === 'bus_stop') return 'bus';
+  if (t.amenity === 'bus_station') return 'int';
+  if (t.amenity === 'taxi') return 'taxi';
+  if (t.amenity === 'ferry_terminal') return 'ferry';
+  if (t.amenity === 'bicycle_rental') return 'bike';
+  if (t.aerialway === 'station') return 'cable';
+  if (t.railway === 'station' || t.railway === 'halt')
+    return (t.station === 'light_rail' || t.light_rail === 'yes' || /\bLRT\b/i.test(t.name || '')) ? 'lrt' : 'mrt';
+  return null;
+}
+function label(type, t){
+  const n = t.name || t['name:en'];
+  if (n) return n;
+  if (type === 'taxi') return 'Taxi stand';
+  if (type === 'bus') return 'Bus stop';
+  return T[type].name;
+}
+function parse(elements){
+  const seen = new Map(), out = [];
+  for (const el of elements) {
+    const t = el.tags || {}, type = classify(t);
+    if (!type) continue;
+    const lat = el.lat ?? el.center?.lat, lng = el.lon ?? el.center?.lon;
+    if (lat == null) continue;
+    const name = label(type, t), key = type + '|' + name, prev = seen.get(key);
+    if (prev && type !== 'bus' && type !== 'taxi' && dist(prev, [lat, lng]) < 400) continue;   // one station, many lines
+    seen.set(key, [lat, lng]);
+    out.push([IDS.indexOf(type), name, +lat.toFixed(6), +lng.toFixed(6), type === 'bus' ? (t.ref || t.asset_ref || '') : '']);
+  }
+  return out;
+}
+const expand = rows => rows.map((a, i) => ({i, type: IDS[a[0]], name: a[1], lat: a[2], lng: a[3], ref: a[4] || ''}));
+
+async function fromServers(){
+  const q = `[out:json][timeout:120];area["ISO3166-1"="SG"][admin_level=2]->.sg;(
+node["highway"="bus_stop"](area.sg);nwr["amenity"="bus_station"](area.sg);nwr["amenity"="taxi"](area.sg);
+nwr["railway"~"^(station|halt)$"](area.sg);nwr["amenity"="ferry_terminal"](area.sg);
+nwr["amenity"="bicycle_rental"](area.sg);nwr["aerialway"="station"](area.sg););out center tags;`;
+  for (let i = 0; i < SERVERS.length; i++) {
+    $('status').textContent = `Loading stops… (${i + 1}/${SERVERS.length})`;
+    try {
+      const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 90000);
+      const r = await fetch(SERVERS[i], {method:'POST', body:'data=' + encodeURIComponent(q), signal: ctl.signal,
+        headers:{'Content-Type':'application/x-www-form-urlencoded'}});
+      clearTimeout(tm);
+      if (!r.ok) continue;
+      const d = await r.json();
+      const rows = parse(d.elements || []);
+      if (rows.length > 500) return rows;          // a busy server can answer "ok" with nothing
+    } catch(e) {}
+  }
+  return null;
+}
+async function fromFile(){
+  try { const r = await fetch('data.json'); if (!r.ok) return null; const d = await r.json(); return d.stops?.length ? d.stops : null; }
+  catch(e) { return null; }
+}
+async function loadData(){
+  const cached = store.get('all', null);
+  if (cached?.rows?.length) { all = expand(cached.rows); draw(); }
+  if (cached?.rows?.length && Date.now() - cached.at < WEEK) return;
+  const rows = await fromFile() || await fromServers();
+  if (rows) { store.set('all', {at: Date.now(), rows}); all = expand(rows); draw(); return; }
+  if (!all.length) {
+    $('status').textContent = 'Stops unavailable';
+    $('list').innerHTML = '<li class="empty">Couldn\'t download the stop list. Check your signal, then tap ◎ to try again.</li>';
+  }
+}
+
+// ---------- map + list ----------
+function radiusFor(p){
+  const z = map.getZoom(), big = p.type !== 'bus' && p.type !== 'bike';
+  return z >= 16 ? (big ? 10 : 7) : z >= 14 ? (big ? 8 : 5) : (big ? 6 : 3);
+}
+function draw(){
+  layer.clearLayers(); markers = [];
+  const shown = all.filter(p => on.has(p.type));
+  // big stations on top of the many bus stops
+  shown.sort((a, b) => (b.type === 'bus') - (a.type === 'bus'));
+  for (const p of shown) {
+    const m = L.circleMarker([p.lat, p.lng], {radius: radiusFor(p), color:'#fff', weight: map.getZoom() >= 14 ? 2 : 1,
+      fillColor: T[p.type].c, fillOpacity: 1, bubblingMouseEvents: false});
+    m.on('click', () => select(p, false));
+    m.addTo(layer); markers.push([m, p]);
+  }
+  $('status').textContent = `${shown.length.toLocaleString()} stops`;
+  if (selected && !on.has(selected.type)) select(null);
+  list();
+}
+function list(){
+  const ref = me || [map.getCenter().lat, map.getCenter().lng];
+  $('listTitle').textContent = me ? 'Nearest to you' : 'Nearest to map centre';
+  if (!all.length) return;
+  const near = all.filter(p => on.has(p.type)).map(p => ({p, d: dist(ref, [p.lat, p.lng])})).sort((a, b) => a.d - b.d).slice(0, 30);
+  $('list').innerHTML = near.length ? near.map(({p, d}) => `
+    <li data-i="${p.i}" class="${selected === p ? 'on' : ''}" style="--c:${T[p.type].c}"><span class="dot"></span>
+      <span class="nm">${esc(p.name)}<span>${esc(sub(p))}</span></span>
+      <span class="d">${fmtD(d)}<span>${me ? Math.max(1, Math.round(d / 80)) + ' min' : ''}</span></span></li>`).join('')
+    : '<li class="empty">Pick at least one transport type above.</li>';
+}
+function select(p, fly = true){
+  selected = p; ringLayer.clearLayers();
+  if (!p) {
+    $('sel').style.removeProperty('--c');
+    $('sel').innerHTML = '<span class="hint">Tap a stop on the map or in the list</span>';
+    list(); return;
+  }
+  L.circleMarker([p.lat, p.lng], {radius: 18, color: '#fff', weight: 3, fill: false, interactive: false}).addTo(ringLayer);
+  const d = me ? dist(me, [p.lat, p.lng]) : null;
+  $('sel').style.setProperty('--c', T[p.type].c);
+  $('sel').innerHTML = `<span class="nm">${esc(p.name)}<span>${esc(sub(p))}${d != null ? ' · ' + fmtD(d) + walk(d) : ''}</span></span>
+    <a id="navBtn" href="${esc(navUrl(p))}" target="_blank" rel="noopener">Navigate</a>
+    <button id="clear" type="button" aria-label="Clear selection">✕</button>`;
+  $('clear').onclick = () => select(null);
+  if (fly) map.setView([p.lat, p.lng], Math.max(map.getZoom(), 17));
+  list();
+}
 
 $('chips').innerHTML = TYPES.map(t =>
   `<button class="chip" type="button" data-id="${t.id}" style="--c:${t.c}" aria-pressed="${on.has(t.id)}"><b></b>${t.name}</button>`).join('');
@@ -126,186 +254,51 @@ $('chips').addEventListener('click', e => {
   on.has(id) ? on.delete(id) : on.add(id);
   b.setAttribute('aria-pressed', on.has(id));
   store.set('on', [...on]);
-  render();
+  draw();
 });
-
-function dist(a, b){
-  const R = 6371000, r = x => x * Math.PI / 180;
-  const dLat = r(b[0]-a[0]), dLng = r(b[1]-a[1]);
-  const h = Math.sin(dLat/2)**2 + Math.cos(r(a[0]))*Math.cos(r(b[0]))*Math.sin(dLng/2)**2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-const fmtD = m => m < 1000 ? Math.round(m/10)*10 + ' m' : (m/1000).toFixed(1) + ' km';
-const walk = m => Math.max(1, Math.round(m / 80)) + ' min walk';
-const navUrl = p => `https://www.google.com/maps/dir/?api=1${me ? `&origin=${me[0]},${me[1]}` : ''}&destination=${p.lat},${p.lng}&travelmode=walking`;
-
-function classify(t){
-  if (t.highway === 'bus_stop' || t.public_transport === 'platform' && t.bus === 'yes') return 'bus';
-  if (t.amenity === 'bus_station') return 'int';
-  if (t.amenity === 'taxi') return 'taxi';
-  if (t.amenity === 'ferry_terminal') return 'ferry';
-  if (t.amenity === 'bicycle_rental') return 'bike';
-  if (t.aerialway === 'station') return 'cable';
-  if (t.railway === 'station' || t.railway === 'halt') {
-    if (t.station === 'light_rail' || /\bLRT\b/i.test(t.name || '') || t.light_rail === 'yes') return 'lrt';
-    return 'mrt';
-  }
-  return null;
-}
-function label(type, t){
-  const n = t.name || t['name:en'];
-  if (n) return n;
-  if (type === 'taxi') return 'Taxi stand';
-  if (type === 'bus') return 'Bus stop' + (t.ref ? ' ' + t.ref : '');
-  return T[type].name;
-}
-
-// All of Singapore, rebuilt weekly from OpenStreetMap by a GitHub Action (data.json beside this page)
-async function loadAll(){
-  try {
-    const r = await fetch('data.json', {cache:'no-cache'});
-    if (!r.ok) return false;
-    const d = await r.json();
-    if (!d.stops || !d.stops.length) return false;
-    allData = d.stops.map(a => ({type: TYPE_IDS[a[0]], name: a[1], lat: a[2], lng: a[3], ref: a[4] || ''}));
-    return true;
-  } catch(e) { return false; }
-}
-
-async function load(center){
-  const R = +$('radius').value;
-  if (allData) {
-    places = allData.filter(p => dist(center, [p.lat, p.lng]) <= R);
-    fetchedAt = center; $('area').style.display = 'none'; render(); return;
-  }
-  if (loading) return;
-  loading = true;
-  $('status').textContent = 'Loading…';
-  const a = `(around:${R},${center[0]},${center[1]})`;
-  const q = `[out:json][timeout:25];(
-node["highway"="bus_stop"]${a};
-nwr["amenity"="bus_station"]${a};
-nwr["amenity"="taxi"]${a};
-nwr["railway"~"^(station|halt)$"]${a};
-nwr["amenity"="ferry_terminal"]${a};
-nwr["amenity"="bicycle_rental"]${a};
-nwr["aerialway"="station"]${a};
-);out center tags;`;
-  let out = null;
-  for (const s of SERVERS) {
-    try {
-      const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 20000);
-      const r = await fetch(s, {method:'POST', body:'data=' + encodeURIComponent(q), signal: ctl.signal,
-        headers:{'Content-Type':'application/x-www-form-urlencoded'}});
-      clearTimeout(tm);
-      if (!r.ok) continue;
-      const data = await r.json();
-      if (data.remark && !(data.elements || []).length) continue;   // busy server: answered "ok" with nothing
-      out = parse(data.elements || []);
-      if (out.length) break;
-    } catch(e) {}
-  }
-  loading = false;
-  if (allData) return;
-  if (!out || !out.length) {
-    $('status').textContent = 'Stop data unavailable';
-    $('list').innerHTML = '<li class="empty">Couldn\'t reach the stop data. Check your signal, then tap ◎ to retry.</li>';
-    return;
-  }
-  places = out; fetchedAt = center;
-  store.set('cache', {places, fetchedAt});
-  $('area').style.display = 'none';
-  render();
-}
-
-function parse(elements){
-  const seen = new Map(), out = [];
-  for (const el of elements) {
-    const t = el.tags || {}, type = classify(t);
-    if (!type) continue;
-    const lat = el.lat ?? el.center?.lat, lng = el.lon ?? el.center?.lon;
-    if (lat == null) continue;
-    const name = label(type, t);
-    const key = type + '|' + name, prev = seen.get(key);
-    if (prev && type !== 'bus' && type !== 'taxi' && dist([prev.lat, prev.lng], [lat, lng]) < 400) continue;
-    const p = {type, name, lat, lng, ref: t.ref || t.asset_ref || ''};
-    seen.set(key, p); out.push(p);
-  }
-  return out;
-}
-
-function render(){
-  layer.clearLayers();
-  const ref = me || fetchedAt || SG;
-  const near = places.filter(p => on.has(p.type)).map(p => ({...p, d: dist(ref, [p.lat, p.lng])}));
-  const pool = allData ? allData.filter(p => on.has(p.type)).map(p => ({...p, d: dist(ref, [p.lat, p.lng])})) : near;
-  const vis = pool.sort((a,b) => a.d - b.d);
-  for (const p of near) {
-    const t = T[p.type], big = p.type !== 'bus' && p.type !== 'bike';
-    L.circleMarker([p.lat, p.lng], {radius: big ? 9 : 6, color:'#fff', weight:2, fillColor:t.c, fillOpacity:1, bubblingMouseEvents:false})
-      .bindPopup(`<b>${esc(p.name)}</b><br>${esc(t.name)}${p.ref && p.type==='bus' ? ' · ' + esc(p.ref) : ''}<br>${fmtD(p.d)} · ${walk(p.d)}<br><a href="${esc(navUrl(p))}" target="_blank" rel="noopener">Navigate ›</a>`)
-      .addTo(layer);
-  }
-  $('status').textContent = `${near.length} within ${fmtD(+$('radius').value)}`;
-  const first = vis[0], btn = $('goBtn');
-  btn.disabled = !first;
-  btn.innerHTML = first
-    ? `Navigate to nearest ${esc(on.size === 1 ? T[[...on][0]].name.toLowerCase() : 'stop')}<small>${esc(first.name)} · ${fmtD(first.d)}</small>`
-    : `Navigate to nearest<small>${on.size ? 'Nothing found in range – widen the radius' : 'Pick at least one transport type'}</small>`;
-  btn.onclick = first ? () => { location.href = navUrl(first); } : null;
-  $('list').innerHTML = vis.length ? vis.slice(0, 25).map((p, i) => `
-    <li data-i="${i}" style="--c:${T[p.type].c}"><span class="dot"></span>
-      <span class="nm">${esc(p.name)}<span>${esc(T[p.type].name)}${p.ref && p.type==='bus' ? ' · ' + esc(p.ref) : ''}</span></span>
-      <span class="d">${fmtD(p.d)}<span>${walk(p.d)}</span></span>
-      <a href="${esc(navUrl(p))}" target="_blank" rel="noopener" aria-label="Navigate to ${esc(p.name)}">›</a></li>`).join('')
-    : `<li class="empty">${on.size ? 'Loading nearby transport…' : 'Pick at least one transport type.'}</li>`;
-  $('list').onclick = e => {
-    if (e.target.closest('a')) return;
-    const li = e.target.closest('li[data-i]'); if (!li) return;
-    const p = vis[+li.dataset.i];
-    map.setView([p.lat, p.lng], 17);
-    layer.eachLayer(m => { const ll = m.getLatLng(); if (ll.lat === p.lat && ll.lng === p.lng) m.openPopup(); });
-  };
-}
+$('list').addEventListener('click', e => {
+  const li = e.target.closest('li[data-i]'); if (!li) return;
+  select(all[+li.dataset.i]);
+});
+let lastZ = map.getZoom();
+map.on('zoomend', () => {
+  const z = map.getZoom(), band = v => v >= 16 ? 2 : v >= 14 ? 1 : 0;
+  if (band(z) !== band(lastZ)) for (const [m, p] of markers) m.setStyle({radius: radiusFor(p), weight: z >= 14 ? 2 : 1});
+  lastZ = z;
+});
+map.on('moveend', () => { if (!me) list(); });
+map.on('click', () => { if (selected) select(null); });
 
 function setMe(lat, lng, acc){
+  const first = !me;
   me = [lat, lng];
   if (!meMarker) {
-    meMarker = L.marker(me, {icon: L.divIcon({className:'', html:'<div class="me"></div>', iconSize:[18,18]}), zIndexOffset:1000}).addTo(map);
-    ring = L.circle(me, {radius: acc || 30, color:'#1a73e8', weight:1, fillOpacity:.08}).addTo(map);
-    map.setView(me, 16);
-  } else { meMarker.setLatLng(me); ring.setLatLng(me).setRadius(acc || 30); }
-  if (!fetchedAt || dist(fetchedAt, me) > +$('radius').value / 2) load(me); else render();
+    meMarker = L.marker(me, {icon: L.divIcon({className:'', html:'<div class="me"></div>', iconSize:[18,18]}), zIndexOffset:1000, interactive:false}).addTo(map);
+    accRing = L.circle(me, {radius: acc || 30, color:'#1a73e8', weight:1, fillOpacity:.08, interactive:false}).addTo(map);
+  } else { meMarker.setLatLng(me); accRing.setLatLng(me).setRadius(acc || 30); }
+  if (first) map.setView(me, 16);
+  list();
+  if (selected) select(selected, false);
 }
-
-// Restore last results so the list shows instantly
-const cache = store.get('cache', null);
-if (cache && cache.places && cache.places.length) { places = cache.places; fetchedAt = cache.fetchedAt; render(); }
-
-loadAll().then(ok => { if (ok) load(me || fetchedAt || SG); });
 if ('geolocation' in navigator) {
   navigator.geolocation.watchPosition(
     pos => setMe(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
-    () => { $('status').textContent = 'Location off – tap the map'; if (!places.length) load(SG); },
+    () => { $('listTitle').textContent = 'Location off · nearest to map centre'; },
     {enableHighAccuracy:true, maximumAge:10000, timeout:15000});
-} else { load(SG); }
-
-let manual = false;
-map.on('click', e => { if (!me || manual) { manual = true; setMe(e.latlng.lat, e.latlng.lng, 20); } });
-map.on('moveend', () => {
-  if (!fetchedAt) return;
-  const c = map.getCenter();
-  $('area').style.display = dist(fetchedAt, [c.lat, c.lng]) > +$('radius').value * 0.6 ? 'block' : 'none';
+}
+$('locate').addEventListener('click', () => {
+  if (me) map.setView(me, 16);
+  if (!all.length) loadData();
 });
-$('area').addEventListener('click', () => { const c = map.getCenter(); load([c.lat, c.lng]); });
-$('radius').addEventListener('change', () => load(me || fetchedAt || SG));
-$('locate').addEventListener('click', () => { if (me) { map.setView(me, 16); load(me); } });
+$('grab').addEventListener('click', () => $('sheet').classList.toggle('min'));
+
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 let deferred = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; $('install').hidden = false; });
 $('install').addEventListener('click', async () => { if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; $('install').hidden = true; });
 window.addEventListener('appinstalled', () => { $('install').hidden = true; });
-$('grab').addEventListener('click', () => $('sheet').classList.toggle('min'));
+
+loadData();
 }
 </script>
 </body>
