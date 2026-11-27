@@ -42,6 +42,34 @@ def get_json(url, data=None, timeout=300):
         return json.load(r)
 
 
+# Singapore's LRT lines are not tagged consistently in OSM, so name them. Interchange stations
+# (Choa Chu Kang, Bukit Panjang, Sengkang, Punggol) stay as MRT.
+LRT_NAMES = {
+    # Bukit Panjang LRT
+    'South View', 'Keat Hong', 'Teck Whye', 'Phoenix', 'Petir', 'Pending', 'Bangkit', 'Fajar', 'Segar', 'Jelapang', 'Senja',
+    # Sengkang LRT
+    'Compassvale', 'Rumbia', 'Bakau', 'Kangkar', 'Ranggung', 'Cheng Lim', 'Farmway', 'Kupang', 'Thanggam', 'Fernvale', 'Layar', 'Tongkang', 'Renjong',
+    # Punggol LRT
+    'Cove', 'Meridian', 'Coral Edge', 'Riviera', 'Kadaloor', 'Oasis', 'Damai', 'Sam Kee', 'Teck Lee', 'Punggol Point', 'Samudera', 'Nibong', 'Sumang', 'Soo Teck',
+    # Sentosa Express
+    'Beach', 'Imbiah', 'Resorts World', 'VivoCity',
+}
+THIS_YEAR = int(time.strftime('%Y'))
+
+
+def not_open(t):
+    """Stations still being built or only planned (Jurong Region Line, Cross Island Line, ...)."""
+    for k, v in t.items():
+        if re.search(r'construction|proposed|planned|disused|abandoned|razed', k) or \
+           (k in ('railway', 'public_transport', 'building') and re.search(r'construction|proposed|planned|disused', v)):
+            return True
+    for k in ('opening_date', 'start_date', 'check_date:opening_date'):
+        m = re.match(r'(\d{4})(?:-(\d{2}))?', t.get(k, ''))
+        if m and (int(m.group(1)), int(m.group(2) or 1)) > (THIS_YEAR, int(time.strftime('%m'))):
+            return True
+    return False
+
+
 def classify(t):
     if t.get('highway') == 'bus_stop': return 'bus'
     if t.get('amenity') == 'bus_station': return 'int'
@@ -50,7 +78,13 @@ def classify(t):
     if t.get('amenity') == 'bicycle_rental': return 'bike'
     if t.get('aerialway') == 'station': return 'cable'
     if t.get('railway') in ('station', 'halt'):
-        lrt = t.get('station') == 'light_rail' or t.get('light_rail') == 'yes' or re.search(r'\bLRT\b', t.get('name', ''), re.I)
+        name = t.get('name', '')
+        if not_open(t): return None
+        if re.fullmatch(r'[A-H]( North| South| East| West)?|MRT|LRT|', name.strip(), re.I): return None            # Changi Airport Skytrain A/B/C..., unnamed platforms
+        if t.get('station') == 'monorail' and name not in LRT_NAMES: return None
+        if re.search(r'skytrain|people mover', ' '.join(t.values()), re.I): return None
+        lrt = name in LRT_NAMES or t.get('station') == 'light_rail' or t.get('light_rail') == 'yes' \
+            or re.search(r'\bLRT\b', name, re.I)
         return 'lrt' if lrt else 'mrt'
     return None
 
@@ -147,7 +181,9 @@ rows = combine(osm, taxi)
 rows.sort(key=lambda r: (r[0], r[1], r[2]))
 counts = {k: sum(1 for r in rows if r[0] == i) for i, k in enumerate(TYPES)}
 print(counts)
-if counts['bus'] < 3000 or counts['mrt'] < 80 or counts['taxi'] < 100:
+print('MRT:', ', '.join(sorted(r[1] for r in rows if r[0] == 0)))
+print('LRT:', ', '.join(sorted(r[1] for r in rows if r[0] == 1)))
+if counts['bus'] < 3000 or counts['mrt'] < 80 or counts['lrt'] < 20 or counts['taxi'] < 100:
     sys.exit('Too few stops - keeping the previous data.json')
 with open(OUT, 'w', encoding='utf-8') as f:
     f.write('{"updated":"%s","counts":%s,"stops":[\n' % (time.strftime('%Y-%m-%d'), json.dumps(counts, separators=(',', ':'))))
