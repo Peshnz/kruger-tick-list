@@ -55,6 +55,16 @@ LRT_NAMES = {
     'Beach', 'Imbiah', 'Resorts World', 'VivoCity',
 }
 THIS_YEAR = int(time.strftime('%Y'))
+MRT_LRT_INTERCHANGES = {'Choa Chu Kang', 'Bukit Panjang', 'Sengkang', 'Punggol'}
+# Mapped in OSM before they open, often without a construction tag. Shown again from their expected year.
+NOT_YET_OPEN = {
+    'Woodlands North RTS': 2027, 'Gek Poh': 2028,
+    # Cross Island Line phase 1
+    'Aviation Park': 2030, 'Loyang': 2030, 'Pasir Ris East': 2030, 'Tampines North': 2030, 'Defu': 2030,
+    'Serangoon North': 2030, 'Tavistock': 2030, 'Teck Ghee': 2030,
+    # Cross Island Line phase 2 and Punggol extension
+    'Turf City': 2032, 'Jurong Lake District': 2032, 'Elias': 2032, 'Riviera CRL': 2032,
+}
 
 
 def not_open(t):
@@ -79,7 +89,8 @@ def classify(t):
     if t.get('aerialway') == 'station': return 'cable'
     if t.get('railway') in ('station', 'halt'):
         name = t.get('name', '')
-        if not_open(t): return None
+        if not_open(t) or NOT_YET_OPEN.get(name, 0) > THIS_YEAR: return None
+        if name in MRT_LRT_INTERCHANGES: return 'mrt'
         if re.fullmatch(r'[A-H]( North| South| East| West)?|MRT|LRT|', name.strip(), re.I): return None            # Changi Airport Skytrain A/B/C..., unnamed platforms
         if t.get('station') == 'monorail' and name not in LRT_NAMES: return None
         if re.search(r'skytrain|people mover', ' '.join(t.values()), re.I): return None
