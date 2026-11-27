@@ -1,0 +1,15 @@
+{
+  "name": "SG Transit Near Me",
+  "short_name": "SG Transit",
+  "description": "Find the nearest MRT, bus stop, taxi stand and more in Singapore, and navigate there.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12202b",
+  "theme_color": "#12202b",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
