@@ -224,12 +224,15 @@ function combine(osm, taxi){
   return out;
 }
 async function loadData(){
-  const cached = store.get('all2', null);
+  const cached = store.get('all3', null);
   if (cached?.rows?.length) { all = expand(cached.rows); draw(); }
   if (cached?.rows?.length && Date.now() - cached.at < WEEK) return;
-  const [osm, taxi] = await Promise.all([fromFile().then(r => r || fromServers()), ltaTaxi()]);
-  const rows = combine(osm || [], taxi);
-  if (rows.length) { if (osm) store.set('all2', {at: Date.now(), rows}); all = expand(rows); draw(); return; }
+  // data.json is rebuilt weekly on GitHub with everything merged; live sources are only a fallback
+  const file = await fromFile();
+  let rows, osm = file;
+  if (file) rows = file;
+  else { const [o, taxi] = await Promise.all([fromServers(), ltaTaxi()]); osm = o; rows = combine(o || [], taxi); }
+  if (rows.length) { if (osm) store.set('all3', {at: Date.now(), rows}); all = expand(rows); draw(); return; }
   if (!all.length) {
     $('status').textContent = 'Stops unavailable';
     $('list').innerHTML = '<li class="empty">Couldn\'t download the stop list. Check your signal, then tap ◎ to try again.</li>';

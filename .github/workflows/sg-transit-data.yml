@@ -1,0 +1,36 @@
+name: SG Transit stop data
+
+# Rebuilds sg-transit/data.json (every transport stop in Singapore) so the app opens ready to use.
+on:
+  schedule:
+    - cron: '17 19 * * 0'   # weekly, Monday 03:17 Singapore time
+  push:
+    branches: [main]
+    paths: ['sg-transit/tools/build_data.py', '.github/workflows/sg-transit-data.yml']
+  workflow_dispatch:         # "Run workflow" button on the Actions tab
+
+permissions:
+  contents: write
+
+concurrency: sg-transit-data
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download stops
+        run: python sg-transit/tools/build_data.py
+      - name: Save if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add sg-transit/data.json
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "Update SG Transit stop data"
+          git pull --rebase
+          git push
