@@ -124,7 +124,7 @@ function dist(a, b){
 const fmtD = m => m < 1000 ? Math.round(m/10)*10 + ' m' : (m/1000).toFixed(1) + ' km';
 const walk = m => m > 3000 ? '' : ' · ' + Math.max(1, Math.round(m / 80)) + ' min walk';
 const navUrl = p => `https://www.google.com/maps/dir/?api=1${me ? `&origin=${me[0]},${me[1]}` : ''}&destination=${p.lat},${p.lng}&travelmode=${dist(me || SG, [p.lat, p.lng]) > 3000 ? 'transit' : 'walking'}`;
-const sub = p => T[p.type].name + (p.ref ? ' · ' + p.ref : '');
+const sub = p => (p.type === 'taxi' && /^Taxi stop/.test(p.name) ? 'Taxi stop' : T[p.type].name) + (p.ref ? ' · ' + p.ref : '');
 
 // ---------- data: all of Singapore, fetched once and kept for a week ----------
 function classify(t){
